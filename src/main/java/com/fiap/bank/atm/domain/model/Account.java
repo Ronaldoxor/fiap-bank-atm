@@ -31,6 +31,17 @@ public class Account extends BaseEntity {
         this.transactions = new ArrayList<>();
     }
 
+    public static Account restore(UUID id, String accountNumber, String pin, Money balance,
+                                  Money dailyWithdrawalLimit, Money totalWithdrawnToday, boolean blocked, int failedAttempts) {
+        Account account = new Account(id, accountNumber, pin, balance, dailyWithdrawalLimit);
+        account.totalWithdrawnToday = totalWithdrawnToday;
+        account.blocked = blocked;
+        account.failedAttempts = failedAttempts;
+        return account;
+    }
+
+    public String getPin() { return pin; }
+
     public String getAccountNumber() {
         return accountNumber;
     }
