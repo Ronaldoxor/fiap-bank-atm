@@ -1,13 +1,9 @@
 package com.fiap.bank.atm.presentation;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.fiap.bank.atm.application.dto.AccountViewDTO;
+import com.fiap.bank.atm.application.exception.AtmOperationException;
 import com.fiap.bank.atm.application.service.AtmService;
-import com.fiap.bank.atm.domain.exception.AccountBlockedException;
-import com.fiap.bank.atm.domain.exception.DailyLimitExceededException;
-import com.fiap.bank.atm.domain.exception.InsufficientFundsException;
-import com.fiap.bank.atm.domain.exception.InvalidPinException;
-import com.fiap.bank.atm.domain.model.Account;
-import com.fiap.bank.atm.domain.model.Transaction;
 
 import javax.swing.*;
 import javax.swing.border.LineBorder;
@@ -15,9 +11,10 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.Optional;
 
 public class AtmFrame extends javax.swing.JFrame {
 
@@ -27,14 +24,14 @@ public class AtmFrame extends javax.swing.JFrame {
     private String targetAccountNumber;
     private String errorMessage;
 
-    // Animation timers & state
+    // Temporizadores e estado das animações
     private Timer cardLedTimer;
     private boolean cardLedOn = true;
     private Timer cashAnimationTimer;
     private Timer printAnimationTimer;
     private Timer successTimer;
 
-    // Virtual receipt paper component
+    // Componente do papel do extrato virtual
     private JDialog receiptDialog;
     private JTextArea txtReceiptPaper;
 
@@ -357,7 +354,7 @@ public class AtmFrame extends javax.swing.JFrame {
                     if (inputBuffer.length() > 0) {
                         double val = Double.parseDouble(inputBuffer.toString());
                         inputBuffer.setLength(0);
-                        atmService.transfer(targetAccountNumber, val);
+                        atmService.transfer(targetAccountNumber, BigDecimal.valueOf(val));
                         currentState = ScreenState.SUCCESS;
                     } else {
                         errorMessage = "DIGITE UM VALOR VÁLIDO";
@@ -369,17 +366,24 @@ public class AtmFrame extends javax.swing.JFrame {
                     // Sem ação no confirm para outros estados
                     break;
             }
-        } catch (AccountBlockedException ex) {
-            errorMessage = "CONTA BLOQUEADA!";
-            currentState = ScreenState.ERROR;
-        } catch (InvalidPinException ex) {
-            errorMessage = "SENHA INCORRETA!";
-            currentState = ScreenState.ERROR;
-        } catch (InsufficientFundsException ex) {
-            errorMessage = "SALDO INSUFICIENTE!";
-            currentState = ScreenState.ERROR;
-        } catch (DailyLimitExceededException ex) {
-            errorMessage = "LIMITE DIÁRIO EXCEDIDO!";
+        } catch (AtmOperationException ex) {
+            switch (ex.getReason()) {
+                case ACCOUNT_BLOCKED:
+                    errorMessage = "CONTA BLOQUEADA!";
+                    break;
+                case INVALID_PIN:
+                    errorMessage = "SENHA INCORRETA!";
+                    break;
+                case INSUFFICIENT_FUNDS:
+                    errorMessage = "SALDO INSUFICIENTE!";
+                    break;
+                case DAILY_LIMIT_EXCEEDED:
+                    errorMessage = "LIMITE DIÁRIO EXCEDIDO!";
+                    break;
+                default:
+                    errorMessage = ex.getMessage().toUpperCase();
+                    break;
+            }
             currentState = ScreenState.ERROR;
         } catch (IllegalArgumentException ex) {
             errorMessage = ex.getMessage().toUpperCase();
@@ -452,7 +456,7 @@ public class AtmFrame extends javax.swing.JFrame {
 
     private void triggerCashWithdrawal(double val) {
         try {
-            atmService.withdraw(val);
+            atmService.withdraw(BigDecimal.valueOf(val));
             currentState = ScreenState.ANIMATION_CASH;
             updateScreen();
 
@@ -471,7 +475,7 @@ public class AtmFrame extends javax.swing.JFrame {
 
     private void triggerDeposit(double val) {
         try {
-            atmService.deposit(val);
+            atmService.deposit(BigDecimal.valueOf(val));
             currentState = ScreenState.ANIMATION_DEPOSIT;
             updateScreen();
 
@@ -502,34 +506,31 @@ public class AtmFrame extends javax.swing.JFrame {
     }
 
     private void showVirtualReceipt() {
-        Account acc = atmService.getCurrentAccount();
-        if (acc == null)
-            return;
+        atmService.getCurrentAccount().ifPresent(this::printReceipt);
+    }
 
+    private void printReceipt(AccountViewDTO acc) {
         StringBuilder sb = new StringBuilder();
         sb.append("========================================\n");
         sb.append("               FIAP BANK                \n");
         sb.append("        COMPROVANTE DE EXTRATO          \n");
         sb.append("========================================\n");
-        sb.append("CONTA: ").append(acc.getAccountNumber()).append("\n");
+        sb.append("CONTA: ").append(acc.accountNumber()).append("\n");
         sb.append("DATA: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")))
                 .append("\n");
         sb.append("----------------------------------------\n");
 
-        List<Transaction> txs = acc.getTransactions();
-        int count = 0;
         // Pega as últimas 5 transações
-        for (int i = txs.size() - 1; i >= 0 && count < 5; i--) {
-            Transaction tx = txs.get(i);
-            sb.append(String.format("%-12s %-14s %12s\n",
-                    tx.getTimestamp().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")),
-                    tx.getType().getDescription(),
-                    tx.getAmount().format()));
-            count++;
-        }
+        atmService.getStatement().stream()
+                .limit(5)
+                .map(tx -> String.format("%-12s %-14s %12s\n",
+                        tx.timestamp().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")),
+                        tx.typeDescription(),
+                        tx.formattedAmount()))
+                .forEach(sb::append);
 
         sb.append("----------------------------------------\n");
-        sb.append("SALDO ATUAL: ").append(acc.getBalance().format()).append("\n");
+        sb.append("SALDO ATUAL: ").append(acc.formattedBalance()).append("\n");
         sb.append("========================================\n");
         sb.append("        OBRIGADO POR UTILIZAR           \n");
         sb.append("             FIAP BANK                  \n");
@@ -611,9 +612,9 @@ public class AtmFrame extends javax.swing.JFrame {
                 break;
 
             case MAIN_MENU:
-                Account currentAcc = atmService.getCurrentAccount();
+                Optional<AccountViewDTO> currentAcc = atmService.getCurrentAccount();
                 lblScreenHeader.setText("--- MENU PRINCIPAL ---");
-                lblScreenStatus.setText("CONTA ATIVA: " + (currentAcc != null ? currentAcc.getAccountNumber() : ""));
+                lblScreenStatus.setText("CONTA ATIVA: " + currentAcc.map(AccountViewDTO::accountNumber).orElse(""));
                 lblScreenInput.setText("SELECIONE A OPERAÇÃO");
 
                 lblLeftOpt1.setText("> SACAR");
@@ -675,15 +676,12 @@ public class AtmFrame extends javax.swing.JFrame {
                 break;
 
             case SHOW_BALANCE:
-                Account balanceAcc = atmService.getCurrentAccount();
+                Optional<AccountViewDTO> balanceAcc = atmService.getCurrentAccount();
                 lblScreenHeader.setText("--- CONSULTA DE SALDO ---");
                 lblScreenStatus.setText("SALDO DISPONÍVEL");
-                lblScreenInput.setText(balanceAcc != null ? balanceAcc.getBalance().format() : "R$ 0,00");
+                lblScreenInput.setText(balanceAcc.map(AccountViewDTO::formattedBalance).orElse("R$ 0,00"));
                 lblScreenMessage.setText("Limite Diário Restante: " +
-                        (balanceAcc != null
-                                ? balanceAcc.getDailyWithdrawalLimit().minus(balanceAcc.getTotalWithdrawnToday())
-                                        .format()
-                                : "R$ 0,00"));
+                        balanceAcc.map(AccountViewDTO::formattedRemainingDailyLimit).orElse("R$ 0,00"));
                 lblRightOpt3.setText("VOLTAR <");
                 btnBlank.setText("");
                 break;
