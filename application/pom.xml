@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.fiap.bank</groupId>
+        <artifactId>fiap-bank-atm</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>application</artifactId>
+    <packaging>jar</packaging>
+
+    <name>application</name>
+    <description>Camada de aplicação do FIAP Bank ATM</description>
+
+    <dependencies>
+        <!-- optional: não repassa o domain para a presentation -->
+        <dependency>
+            <groupId>com.fiap.bank</groupId>
+            <artifactId>domain</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- runtime: carregado pelo ServiceLoader, sem acesso em tempo de compilação -->
+        <dependency>
+            <groupId>com.fiap.bank</groupId>
+            <artifactId>infrastructure</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+</project>
