@@ -28,14 +28,18 @@ public class AtmService {
         Account account = accountRepository.findByAccountNumber(accountNumber)
                 .orElseThrow(() -> new AtmOperationException(Reason.INVALID_PIN, "Conta não encontrada."));
 
+        // MELHORIA 1: try/finally no lugar de accountRepository.salvar(account)
+        // duplicado no try e no catch. O estado da conta precisa ser gravado
+        // tanto no sucesso (zeramento de tentativas) quanto na falha (tentativa
+        // errada / bloqueio), então o finally cobre os dois casos numa linha só.
         try {
             account.authenticate(pin);
-            accountRepository.salvar(account); // Grava o zeramento das tentativas
             currentAccount = account;
             return toAccountView(account);
         } catch (RuntimeException e) {
-            accountRepository.salvar(account); // Grava as tentativas erradas e o bloqueio
             throw translate(e);
+        } finally {
+            accountRepository.salvar(account);
         }
     }
 
@@ -102,24 +106,18 @@ public class AtmService {
         }
     }
 
-    // Converte as exceções do domínio para a camada de apresentação
+    // MELHORIA 2: switch com pattern matching (Java 21) no lugar da cadeia de
+    // if/instanceof. Mesmo comportamento, mas mais legível e mais alinhado
+    // com a versão do Java que o projeto já usa.
     private static RuntimeException translate(RuntimeException error) {
-        if (error instanceof AccountBlockedException) {
-            return new AtmOperationException(Reason.ACCOUNT_BLOCKED, error);
-        }
-        if (error instanceof InvalidPinException) {
-            return new AtmOperationException(Reason.INVALID_PIN, error);
-        }
-        if (error instanceof InsufficientFundsException) {
-            return new AtmOperationException(Reason.INSUFFICIENT_FUNDS, error);
-        }
-        if (error instanceof DailyLimitExceededException) {
-            return new AtmOperationException(Reason.DAILY_LIMIT_EXCEEDED, error);
-        }
-        if (error instanceof IllegalArgumentException) {
-            return new AtmOperationException(Reason.INVALID_OPERATION, error);
-        }
-        return error;
+        return switch (error) {
+            case AccountBlockedException e -> new AtmOperationException(Reason.ACCOUNT_BLOCKED, e);
+            case InvalidPinException e -> new AtmOperationException(Reason.INVALID_PIN, e);
+            case InsufficientFundsException e -> new AtmOperationException(Reason.INSUFFICIENT_FUNDS, e);
+            case DailyLimitExceededException e -> new AtmOperationException(Reason.DAILY_LIMIT_EXCEEDED, e);
+            case IllegalArgumentException e -> new AtmOperationException(Reason.INVALID_OPERATION, e);
+            default -> error;
+        };
     }
 
     private static AccountViewDTO toAccountView(Account account) {
