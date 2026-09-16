@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -6,10 +7,17 @@
     <groupId>com.fiap.bank</groupId>
     <artifactId>fiap-bank-atm</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
 
     <name>fiap-bank-atm</name>
     <description>Emulador de Caixa Eletrônico (ATM) em Java Swing com DDD</description>
+
+    <modules>
+        <module>domain</module>
+        <module>application</module>
+        <module>infrastructure</module>
+        <module>presentation</module>
+    </modules>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -19,32 +27,34 @@
         <junit.version>5.10.2</junit.version>
     </properties>
 
-    <dependencies>
-        <!-- FlatLaf - Modern Look and Feel -->
-        <dependency>
-            <groupId>com.formdev</groupId>
-            <artifactId>flatlaf</artifactId>
-            <version>${flatlaf.version}</version>
-        </dependency>
+    <dependencyManagement>
+        <dependencies>
+            <!-- FlatLaf - Look and Feel moderno -->
+            <dependency>
+                <groupId>com.formdev</groupId>
+                <artifactId>flatlaf</artifactId>
+                <version>${flatlaf.version}</version>
+            </dependency>
 
-        <!-- JUnit 5 for testing -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+            <!-- JUnit 5 para testes -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>
-            <!-- Maven Compiler Plugin -->
+            <!-- Plugin de compilação do Maven -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -55,17 +65,19 @@
                 </configuration>
             </plugin>
 
-            <!-- Exec Maven Plugin to easily run from CLI -->
+            <!-- Plugin para rodar a aplicação pelo terminal -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.1</version>
                 <configuration>
                     <mainClass>com.fiap.bank.atm.AtmApplication</mainClass>
+                    <!-- Só o módulo presentation executa -->
+                    <skip>true</skip>
                 </configuration>
             </plugin>
 
-            <!-- Maven Surefire Plugin to run tests -->
+            <!-- Plugin do Maven para rodar os testes -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

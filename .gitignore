@@ -1,1 +1,15 @@
-target/**
+target/
+
+# SQLite
+*.db
+*.db-journal
+
+# IDE e sistema
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+.factorypath
+.DS_Store
